@@ -1,0 +1,277 @@
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/public-private-vpc.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        VpcCIDR: 10.0.0.0/26
+        PublicSubnet1CIDR: 10.0.0.0/28
+        PublicSubnet2CIDR: 10.0.0.16/28
+        PrivateSubnet1CIDR: 10.0.0.32/28
+        PrivateSubnet2CIDR: 10.0.0.48/28
+        SSLCertificate: arn:aws:acm:ap-south-1:143920347318:certificate/d6cbd327-e09d-4098-a24e-8cf574c84424
+
+  Discovery:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack        
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service-discovery.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        Namespace: "local.com"
+        # ServiceDiscoveryName: "jsi-dev-ns"
+
+  ApiGatewayService1:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: api-gateway
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/api-gateway:latest
+        ContainerPort: 9002
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 4
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapi.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+
+  AuthServerService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: auth-server
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/auth-server:latest
+        ContainerPort: 9003
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 5
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapiauth.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
+
+  CoreModuleService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-module-service
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/core-module-service:latest
+        ContainerPort: 9004
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 6
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapicore.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+
+  PersonalLoanService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: personal-loan-service
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/personal-loan-service:latest
+        ContainerPort: 9010
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 7
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapipersonal.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+
+  NotificationService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: notification-service
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/notification-service:latest
+        ContainerPort: 9007
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 8
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapinotification.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
+
+  LMSService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: lms-service
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/lms-service:latest
+        ContainerPort: 9006
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 9
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapilms.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+
+  SchedularService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: schedular-service
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/schedular-service:latest
+        ContainerPort: 9008
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 10
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapischedular.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+
+  LosService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: los-service
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/los-service:latest
+        ContainerPort: 9005
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 11
+        DesiredCount: 0
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapilos.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer        
+
+  MainPortalService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: main-portal
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/main-portal:latest
+        ContainerPort: 4000
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 12
+        DesiredCount: 0
+        HealthPath: /
+        HttpHostHeader: "dev-goldloan.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+
+  CorePortalService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-portal
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/core-portal:latest
+        ContainerPort: 4001
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 13
+        DesiredCount: 0
+        HealthPath: /
+        HttpHostHeader: "dev-gl-core.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+
+  LosPortalService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: los-portal
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/los-portal:latest
+        ContainerPort: 4002
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 14
+        DesiredCount: 0
+        HealthPath: /
+        HttpHostHeader: "dev-gl-los.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+
+  LmsPortalService:
+   # DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://jsi-infra.s3.ap-south-1.amazonaws.com/service_fargate.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: lms-portal
+        ImageUrl: 143920347318.dkr.ecr.ap-south-1.amazonaws.com/lms-portal:latest
+        ContainerPort: 4003
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 15
+        DesiredCount: 0
+        HealthPath: /
+        HttpHostHeader: "dev-gl-lms.jsinfosys.co.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer                                                     
+
+       

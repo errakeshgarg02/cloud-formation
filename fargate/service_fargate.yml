@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy a service on AWS Fargate, hosted in a private subnet, but accessible via a public load balancer.
+Parameters:
+  StackName:
+    Type: String
+    Default: production
+    Description: The name of the parent Fargate networking stack that you created. Necessary
+                 to locate and reference resources created by that stack.
+  ServiceName:
+    Type: String
+    Default: nginx
+    Description: A name for the service
+  ImageUrl:
+    Type: String
+    Default: nginx
+    Description: The url of a docker image that contains the application process that
+                 will handle the traffic for this service
+  ContainerPort:
+    Type: Number
+    Default: 80
+    Description: What port number the application inside the docker container is binding to
+  ContainerCpu:
+    Type: Number
+    Default: 256
+    Description: How much CPU to give the container. 1024 is 1 CPU
+  ContainerMemory:
+    Type: Number
+    Default: 512
+    Description: How much memory in megabytes to give the container
+  Path:
+    Type: String
+    
+    Description: A path on the public load balancer that this service
+                 should be connected to. Use * to send all load balancer
+                 traffic to this service.
+
+  HttpHostHeader:
+    Type: String
+    Description: A http host header.
+
+  Priority:
+    Type: Number
+    Default: 1
+    Description: The priority for the routing rule added to the load balancer.
+                 This only applies if your have multiple services which have been
+                 assigned to different paths on the load balancer.
+  DesiredCount:
+    Type: Number
+    Default: 2
+    Description: How many copies of the service task to run
+
+  Role:
+    Type: String
+    Default: ""
+    Description: (Optional) An IAM role to give the service's containers if the code within needs to
+                 access other AWS resources like S3 buckets, DynamoDB tables, etc
+
+  HealthPath:
+    Type: String
+    Default: "/"
+    Description: Health check path for target group
+
+  PrivateNamespace:
+    Type: String
+    Default: ""
+    Description: Private Namespace for Service discovery 
+
+  PublicLoadBalancer:
+    Type: String
+    Description: Public Load Balancer 
+
+  HTTPSListener:
+    Type: String
+    Description: A Https Listener     
+
+Conditions:
+  HasCustomRole: !Not [ !Equals [!Ref 'Role', ''] ]
+
+Resources:
+
+  # The task definition. This is a simple metadata description of what
+  # container to run, and what resource requirements it has.
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${StackName}-${ServiceName}"
+      Cpu: !Ref 'ContainerCpu'
+      Memory: !Ref 'ContainerMemory'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'ECSTaskExecutionRole']]
+      TaskRoleArn:
+        Fn::If:
+          - 'HasCustomRole'
+          - !Ref 'Role'
+          - !Ref "AWS::NoValue"
+      ContainerDefinitions:
+        - Name: !Ref 'ServiceName'
+          Cpu: !Ref 'ContainerCpu'
+          Memory: !Ref 'ContainerMemory'
+          Image: !Ref 'ImageUrl'
+          PortMappings:
+            - ContainerPort: !Ref 'ContainerPort'
+          Environment:
+            - Name: "name"
+              Value: "value"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'ecs'            
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${StackName}-${ServiceName}"
+      RetentionInDays: 90
+
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties: 
+      Description: "Discovery Service for ${StackName}"
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+          - TTL: 60
+            Type: SRV
+      HealthCheckCustomConfig: 
+        FailureThreshold: 1
+      Name: !Ref 'ServiceName'
+      NamespaceId: !Ref PrivateNamespace      
+
+  # The service. The service is a resource which allows you to run multiple
+  # copies of a type of task, and gather up their logs and metrics, as well
+  # as monitor the number of running tasks and replace any that have crashed
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - LoadBalancerRule
+      - DiscoveryService
+    Properties:
+      ServiceName: !Ref 'ServiceName'
+      Cluster:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'ClusterName']]         
+      LaunchType: FARGATE
+      SchedulingStrategy: "REPLICA"
+      ServiceRegistries:
+        - RegistryArn: !GetAtt DiscoveryService.Arn
+          Port: !Ref 'ContainerPort'
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      DesiredCount: !Ref 'DesiredCount'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: "DISABLED"
+          SecurityGroups:
+            - Fn::ImportValue:
+                !Join [':', [!Ref 'StackName', 'FargateContainerSecurityGroup']]
+          Subnets:
+            - Fn::ImportValue:
+                !Join [':', [!Ref 'StackName', 'PrivateSubnetOne']]
+            - Fn::ImportValue:
+                !Join [':', [!Ref 'StackName', 'PrivateSubnetTwo']] 
+
+      TaskDefinition: !Ref 'TaskDefinition'
+      LoadBalancers:
+        - ContainerName: !Ref 'ServiceName'
+          ContainerPort: !Ref 'ContainerPort'
+          TargetGroupArn: !Ref 'TargetGroup'
+
+  # A target group. This is used for keeping track of all the tasks, and
+  # what IP addresses / port numbers they have. You can query it yourself,
+  # to use the addresses yourself, but most often this target group is just
+  # connected to an application load balancer, or network load balancer, so
+  # it can automatically distribute traffic across all the targets.
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: !Ref HealthPath
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 10
+      TargetType: ip
+      Name: !Sub "${StackName}-${ServiceName}"
+      Port: !Ref 'ContainerPort'
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'StackName', 'VPCId']]
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30          
+
+  # LoadBalancerListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   # DependsOn:
+  #   #   - !Ref PublicLoadBalancer
+  #   Properties:
+  #     DefaultActions:
+  #       - TargetGroupArn: !Ref 'TargetGroup'
+  #         Type: 'forward'
+  #     LoadBalancerArn: !Ref 'PublicLoadBalancer'
+  #     Port: !Ref 'ContainerPort'
+  #     Protocol: HTTP          
+
+  # # Create a rule on the load balancer for routing traffic to the target group
+  # LoadBalancerRule:
+  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  #   Properties:
+  #     Actions:
+  #       - TargetGroupArn: !Ref 'TargetGroup'
+  #         Type: 'forward'
+  #     Conditions:
+  #       - Field: path-pattern
+  #         Values: [!Ref 'Path']
+  #     ListenerArn: !Ref LoadBalancerListener
+  #       # Fn::ImportValue:
+  #       #   !Join [':', [!Ref 'StackName', 'PublicListener']]
+  #     Priority: !Ref 'Priority'
+
+  # Create a rule on the load balancer for routing traffic to the target group
+  LoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: host-header
+          Values: [!Ref 'HttpHostHeader']
+      ListenerArn: !Ref HTTPSListener
+        # Fn::ImportValue:
+        #   !Join [':', [!Ref 'StackName', 'PublicListener']]
+      Priority: !Ref 'Priority'      
+
+
+      

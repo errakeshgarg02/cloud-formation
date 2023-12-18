@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy a service on AWS Fargate, hosted in a private subnet, but accessible via a public load balancer.
+Parameters:
+  StackName:
+    Type: String
+    Default: production
+    Description: The name of the parent Fargate networking stack that you created. Necessary
+                 to locate and reference resources created by that stack.
+  Namespace:
+    Type: String
+    Description: A Namespace for the service
+
+
+Resources:
+  PrivateNamespace:
+      Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+      Properties:
+          Name: !Ref Namespace
+          Vpc:
+            Fn::ImportValue:
+              !Join [':', [!Ref 'StackName', 'VPCId']]
+
+
+Outputs:
+  PrivateNamespace:
+    Description: The PrivateNamespace of the ECS cluster
+    Value: !Ref 'PrivateNamespace'
+    Export:
+      Name: !Join [ ':', [ !Ref 'StackName', 'PrivateNamespace' ] ]
