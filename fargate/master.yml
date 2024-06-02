@@ -94,26 +94,26 @@ Resources:
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
 
-  PersonalLoanService:
-    DependsOn: VPC
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/dev/service_fargate.yml
-      Parameters:
-        StackName: !Ref AWS::StackName
-        ServiceName: personal-loan-service
-        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/personal-loan-service:latest
-        ContainerPort: 9010
-        ContainerCpu: 256
-        ContainerMemory: 512
-        Path: "*"
-        Priority: 4
-        DesiredCount: 0
-        HealthPath: /actuator/health
-        HttpHostHeader: "devapipersonal.indiafinsec.in"
-        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
-        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
-        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+  # PersonalLoanService:
+  #   DependsOn: VPC
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/dev/service_fargate.yml
+  #     Parameters:
+  #       StackName: !Ref AWS::StackName
+  #       ServiceName: personal-loan-service
+  #       ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/personal-loan-service:latest
+  #       ContainerPort: 9010
+  #       ContainerCpu: 256
+  #       ContainerMemory: 512
+  #       Path: "*"
+  #       Priority: 4
+  #       DesiredCount: 0
+  #       HealthPath: /actuator/health
+  #       HttpHostHeader: "devapipersonal.indiafinsec.in"
+  #       HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+  #       PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+  #       PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
 
   NotificationService:
     DependsOn: VPC
