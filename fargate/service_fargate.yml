@@ -211,18 +211,19 @@ Resources:
         ScaleOutCooldown: 300
         TargetValue: 75  
 
-  # MemoryUtilizationAutoScalingPolicy:
-  #   Type: AWS::ApplicationAutoScaling::ScalingPolicy
-  #   Properties:
-  #     PolicyName: !Sub '${Service}-MemoryUtilizationScaleUpPolicy'
-  #     PolicyType: TargetTrackingScaling
-  #     ScalingTargetId: !Ref AutoScalingTarget
-  #     TargetTrackingScalingPolicyConfiguration:
-  #       PredefinedMetricSpecification:
-  #         PredefinedMetricType: ECSServiceAverageMemoryUtilization
-  #       ScaleInCooldown: 300
-  #       ScaleOutCooldown: 300
-  #       TargetValue: 75 
+  MemoryUtilizationAutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${Service}-MemoryUtilizationScaleUpPolicy'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 300
+        TargetValue: 85 
+
   # A target group. This is used for keeping track of all the tasks, and
   # what IP addresses / port numbers they have. You can query it yourself,
   # to use the addresses yourself, but most often this target group is just
