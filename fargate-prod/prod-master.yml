@@ -1,0 +1,344 @@
+Description: This stack deploys a Fargate cluster that is in a VPC with both
+             public and private subnets. Containers can be deployed into either
+             the public subnets or the private subnets, and there is one load
+             balancers. One is inside the public subnet, which can be used to
+             send traffic to the containers in the private subnet, and one in
+             the private subnet, which can be used for private internal traffic
+             between internal services. India-finsec
+
+
+
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/vpc-sg-alb.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        VpcCIDR: 10.2.0.0/25
+        PublicSubnet1CIDR: 10.2.0.0/27
+        PublicSubnet2CIDR: 10.2.0.32/27
+        PrivateSubnet1CIDR: 10.2.0.64/27
+        PrivateSubnet2CIDR: 10.2.0.96/27
+        SSLCertificate: arn:aws:acm:ap-south-1:851725287281:certificate/1e9d2455-3994-4826-ba06-2ee8e7e8fa42
+
+  EC2ECSCluster:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/ecs-ec2-fargate-cluster.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        # Ec2InstanceType: t2.micro
+        # Ec2ImageId: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+        # Ec2AutoscaleMinSize: 0
+        # Ec2AutoscaleMaxSize: 20
+        # Ec2AutoscaleDesiredCapacity: 0
+        # EC2KeyPair: india-finsec-vpn-keypair
+
+  Discovery:
+    DependsOn: EC2ECSCluster
+    Type: AWS::CloudFormation::Stack        
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service-discovery.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        Namespace: !Sub '${AWS::StackName}.com'
+
+  ApiGatewayService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: api-gateway
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/api-gateway:latest
+        ContainerPort: 9002
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 1
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "lsp-api.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/api-gateway.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none  
+
+  AuthServerService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: auth-server
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/auth-server:latest
+        ContainerPort: 9003
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 2
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "lsp-auth.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/auth-server.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/credentials.env          
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none
+
+  CoreModuleService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-module-service
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/core-module-service:latest
+        ContainerPort: 9004
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 3
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapicore.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/core-module-service.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/credentials.env              
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none         
+
+  NotificationService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: notification-service
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/notification-service:latest
+        ContainerPort: 9007
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 5
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapinotification.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/notification-service.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/credentials.env              
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  LMSService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: lms-service
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/lms-service:latest
+        ContainerPort: 9006
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 6
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapilms.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/lms-service.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/credentials.env            
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  SchedularService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: schedular-service
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/schedular-service:latest
+        ContainerPort: 9008
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 7
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapischedular.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/schedular-service.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/credentials.env           
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  LosService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: los-service
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/los-service:latest
+        ContainerPort: 9005
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 8
+        DesiredCount: 1
+        HealthPath: /actuator/health
+        HttpHostHeader: "devapilos.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/los-service.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/backend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/credentials.env           
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none                 
+
+  MainPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: main-portal
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/main-portal:latest
+        ContainerPort: 4000
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 9
+        DesiredCount: 1
+        HealthPath: /
+        HttpHostHeader: "lsp.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/main-portal.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none           
+
+  CorePortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-portal
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/core-portal:latest
+        ContainerPort: 4001
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 10
+        DesiredCount: 1
+        HealthPath: /
+        HttpHostHeader: "lsp-core.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/core-portal.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none     
+
+  LosPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: los-portal
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/los-portal:latest
+        ContainerPort: 4002
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 11
+        DesiredCount: 1
+        HealthPath: /
+        HttpHostHeader: "lsp-los.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/los-portal.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  LmsPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://india-finsec-infra.s3.ap-south-1.amazonaws.com/cloudformation/prod/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: lms-portal
+        ImageUrl: 851725287281.dkr.ecr.ap-south-1.amazonaws.com/lms-portal:latest
+        ContainerPort: 4003
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 12
+        DesiredCount: 1
+        HealthPath: /
+        HttpHostHeader: "lsp-lms.indiafinsec.in"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer                                                     
+        EnvironmentFile1: arn:aws:s3:::india-finsec-infra/service-data/prod/lms-portal.env
+        EnvironmentFile2: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        EnvironmentFile3: arn:aws:s3:::india-finsec-infra/service-data/prod/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: 60
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+       
