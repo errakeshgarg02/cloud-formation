@@ -1,0 +1,398 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack deploys a Fargate cluster that is in a VPC with both
+             public and private subnets. Containers can be deployed into either
+             the public subnets or the private subnets, and there is one load
+             balancers. One is inside the public subnet, which can be used to
+             send traffic to the containers in the private subnet, and one in
+             the private subnet, which can be used for private internal traffic
+             between internal services. ifl
+
+Parameters:
+
+  ECRRepoUrl:
+    Type: String
+    Default: 851725287281.dkr.ecr.ap-south-1.amazonaws.com
+    Description: AWS ECR Common URL
+
+  AWSBucketUrl:
+    Type: String
+    Default: https://ifl-infra.s3.ap-south-1.amazonaws.com
+    Description: AWS S3 bucket name
+
+  VPCCIDR:
+    Type: String
+    Default: 10.1.0.0/25
+    Description: AWS VPC CIDR
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.1.0.0/27
+    Description: AWS PublicSubnet1CIDR
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.1.0.32/27
+    Description: AWS PublicSubnet2CIDR
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.1.0.64/27
+    Description: AWS PrivateSubnet1CIDR
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.1.0.96/27
+    Description: AWS PrivateSubnet2CIDR
+
+  SSLCertificate:
+    Type: String
+    Default: arn:aws:acm:ap-south-1:851725287281:certificate/1e9d2455-3994-4826-ba06-2ee8e7e8fa42
+    Description: AWS SSL Certificate
+
+  DomainName:
+    Type: String
+    Default: iflhousingfinance.in
+    Description: Domain Name
+
+  EnvironmentFilePath:
+    Type: String
+    Default: arn:aws:s3:::ifl-infra/service-data/dev
+    Description: The aws Environment files path
+
+  DesiredCount:
+    Type: Number
+    Default: 0
+    Description: The Task Desired count      
+
+  LogRetentionInDays:
+    Type: Number
+    Default: 60
+    Description: The Log files retention days 
+
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/vpc-sg-alb.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        VpcCIDR: !Ref VPCCIDR
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+        SSLCertificate: !Ref SSLCertificate
+
+  EC2ECSCluster:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/ecs-ec2-fargate-cluster.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+
+  Discovery:
+    DependsOn: EC2ECSCluster
+    Type: AWS::CloudFormation::Stack        
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service-discovery.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        Namespace: !Sub '${AWS::StackName}.com'
+
+  ApiGatewayService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: api-gateway
+        ImageUrl: !Sub ${ECRRepoUrl}/api-gateway:latest
+        ContainerPort: 9002
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 1
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "dev-lsp-api.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/api-gateway.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/backend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none  
+
+  AuthServerService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: auth-server
+        ImageUrl: !Sub ${ECRRepoUrl}/auth-server:latest
+        ContainerPort: 9003
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 2
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "dev-lsp-auth.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/auth-server.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/credentials.env          
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none
+
+  CoreModuleService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-module-service
+        ImageUrl: !Sub ${ECRRepoUrl}/core-module-service:latest
+        ContainerPort: 9004
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 3
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapicore.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/core-module-service.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/credentials.env              
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none         
+
+  NotificationService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: notification-service
+        ImageUrl: !Sub ${ECRRepoUrl}/notification-service:latest
+        ContainerPort: 9007
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 5
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapinotification.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/notification-service.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/credentials.env              
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  LMSService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: lms-service
+        ImageUrl: !Sub ${ECRRepoUrl}/lms-service:latest
+        ContainerPort: 9006
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 6
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapilms.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/lms-service.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/credentials.env            
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  SchedularService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: schedular-service
+        ImageUrl: !Sub ${ECRRepoUrl}/schedular-service:latest
+        ContainerPort: 9008
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 7
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapischedular.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/schedular-service.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/credentials.env           
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  LosService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: los-service
+        ImageUrl: !Sub ${ECRRepoUrl}/los-service:latest
+        ContainerPort: 9005
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 8
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapilos.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/los-service.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/credentials.env           
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none                 
+
+  MainPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: main-portal
+        ImageUrl: !Sub ${ECRRepoUrl}/main-portal:latest
+        ContainerPort: 4000
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 9
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /
+        HttpHostHeader: !Sub "dev-lsp.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/main-portal.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/frontend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none           
+
+  CorePortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-portal
+        ImageUrl: !Sub ${ECRRepoUrl}/core-portal:latest
+        ContainerPort: 4001
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 10
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /
+        HttpHostHeader: !Sub "dev-lsp-core.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/core-portal.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/frontend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none     
+
+  LosPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: los-portal
+        ImageUrl: !Sub ${ECRRepoUrl}/los-portal:latest
+        ContainerPort: 4002
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 11
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /
+        HttpHostHeader: !Sub "dev-lsp-los.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/los-portal.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/frontend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+
+  LmsPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: lms-portal
+        ImageUrl: !Sub ${ECRRepoUrl}/lms-portal:latest
+        ContainerPort: 4003
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 12
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /
+        HttpHostHeader: !Sub "dev-lsp-lms.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer                                                     
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/lms-portal.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/frontend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/frontend-common.env
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none 

@@ -1,0 +1,116 @@
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Resources:
+
+  ApiGatewayRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: api-gateway
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: api-gateway
+
+  AuthServerRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: auth-server
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: auth-server
+
+  CoreModuleServiceRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: core-module-service
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: core-module-service        
+
+  LosServiceRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: los-service
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: los-service 
+
+  LmsServiceRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: lms-service
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: lms-service 
+
+  NotificationServiceRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: notification-service
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: notification-service 
+
+  SchedularServiceRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: schedular-service
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: schedular-service
+
+  MainPortalRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: main-portal
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: main-portal
+
+  CorePortalRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: core-portal
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: core-portal
+
+  LosPortalRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: los-portal
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: los-portal
+
+  LmsPortalRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: lms-portal
+      ImageScanningConfiguration: 
+        ScanOnPush: true      
+      Tags:
+        - Key: Name
+          Value: lms-portal                    
+

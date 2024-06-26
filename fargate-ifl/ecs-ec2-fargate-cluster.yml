@@ -1,0 +1,286 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ecs-ec2-cluster
+
+Parameters:
+  StackName:
+    Description: A Stack name that will be prefixed to resource names
+    Type: String
+  # Ec2ImageId:
+  #   Description: AMI ID
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  # Ec2InstanceType:
+  #   Description: EC2 InstanceType
+  #   Type: String
+  #   Default: t2.micro
+  # Ec2AutoscaleMinSize:
+  #   Description: AutoScalingGroup MinSize
+  #   Type: String
+  #   Default: '0'
+  # Ec2AutoscaleMaxSize:
+  #   Description: AutoScalingGroup MaxSize
+  #   Type: String
+  #   Default: '10'
+  # Ec2AutoscaleDesiredCapacity:
+  #   Description: AutoScalingGroup DesiredCapacity
+  #   Type: String
+  #   Default: '0' 
+  # EC2KeyPair:
+  #   Description: Name of an existing EC2 KeyPair to enable SSH access to the EC2 instances
+  #   Type: AWS::EC2::KeyPair::KeyName         
+
+# Resources
+Resources:
+
+  # ECS Resources
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${StackName}-cluster
+      Tags: 
+        - Key: Name
+          Value: !Sub '${StackName} Cluster'       
+
+
+  # This security group defines who/where is allowed to access the ECS hosts directly.
+  # By default we're just allowing access from the load balancer.  If you want to SSH
+  # into the hosts, or expose non-load balanced services you can open their ports here.
+  # ECSHostSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     VpcId:
+  #       Fn::ImportValue:
+  #         !Join [':', [!Ref 'StackName', 'VPCId']]
+  #     GroupDescription: Access to the ECS hosts and the tasks/containers that run on them
+  #     SecurityGroupIngress:
+  #         # Allow access to ALB from anywhere on the internet
+  #         - CidrIp: 0.0.0.0/0
+  #           IpProtocol: -1
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${StackName}-ECS-Hosts-SG
+
+#####
+  # EC2 Instance role
+  # InstanceRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Statement:
+  #       - Action:
+  #         - sts:AssumeRole
+  #         Effect: Allow
+  #         Principal:
+  #           Service:
+  #           - ec2.amazonaws.com
+  #       Version: 2012-10-17
+  #     ManagedPolicyArns:
+  #     - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+  #     Path: /
+  #     Policies:
+  #     - PolicyDocument:
+  #         Statement:
+  #         - Action:
+  #           - ecs:UpdateContainerInstancesState
+  #           Effect: Allow
+  #           Resource: '*'
+  #         Version: 2012-10-17
+  #       PolicyName: !Sub ${StackName}-ecsUpdateContainerInstancesStatePolicy
+  #     - PolicyDocument:
+  #         Statement:
+  #         - Action:
+  #           - logs:CreateLogGroup
+  #           - logs:CreateLogStream
+  #           - logs:PutLogEvents
+  #           - logs:DescribeLogStreams
+  #           Effect: Allow
+  #           Resource: arn:aws:logs:*:*:*
+  #         Version: 2012-10-17
+  #       PolicyName: !Sub ${StackName}-cloudWatchLogsPolicy
+  #     - PolicyDocument:
+  #         Version: 2012-10-17
+  #         Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - s3:Get*
+  #             - s3:List*
+  #             - "s3:Describe*"
+  #             - "s3-object-lambda:Get*"
+  #             - "s3-object-lambda:List*"              
+  #           Resource: "*"
+  #       PolicyName: !Sub ${StackName}-ec2-read-only-s3-bucket      
+
+  # # EC2 Instance Profile
+  # InstanceProfile:
+  #   Type: AWS::IAM::InstanceProfile
+  #   DependsOn:
+  #   - InstanceRole
+  #   Properties:
+  #     Path: /
+  #     Roles:
+  #     - Ref: InstanceRole
+
+  # # EC2 Instance Launch template 
+  # Ec2InstanceLaunchTemplate:
+  #   Type: AWS::EC2::LaunchTemplate
+  #   DependsOn:
+  #     - InstanceProfile
+  #     - ECSCluster
+  #   Properties: 
+  #     LaunchTemplateName: !Sub ${StackName}-EC2-ECS-Launch-Template
+  #     LaunchTemplateData: 
+  #       InstanceType: !Ref 'Ec2InstanceType'
+  #       KeyName: !Ref 'EC2KeyPair'
+  #       CreditSpecification:
+  #         CpuCredits: standard
+  #       ImageId: !Ref 'Ec2ImageId'
+  #       IamInstanceProfile: 
+  #         Arn: !GetAtt InstanceProfile.Arn
+  #       SecurityGroupIds: 
+  #         - !Ref ECSHostSecurityGroup  
+  #       UserData:
+  #         Fn::Base64: !Sub |
+  #           #!/bin/bash
+  #           export PATH=/usr/local/bin:$PATH
+  #           yum -y --security update
+  #           yum -y install jq
+  #           easy_install pip
+  #           pip install awscli
+  #           aws configure set default.region ${AWS::Region}
+  #           echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+  #           echo ECS_BACKEND_HOST= >> /etc/ecs/ecs.config
+
+  #           cat <<EOF > /tmp/awslogs.conf
+  #           [general]
+  #           state_file = /var/awslogs/state/agent-state
+
+  #           EOF
+
+  #           cd /tmp && curl -sO https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py
+  #           python /tmp/awslogs-agent-setup.py -n -r ${AWS::Region} -c /tmp/awslogs.conf
+
+  #           cat <<EOF > /etc/init/cloudwatch-logs-start.conf
+  #           description "Configure and start CloudWatch Logs agent on Amazon ECS container instance"
+  #           author "Amazon Web Services"
+  #           start on started ecs
+  #           script
+  #           exec 2>>/var/log/cloudwatch-logs-start.log
+  #           set -x
+  #           until curl -s http://localhost:51678/v1/metadata; do sleep 1; done
+  #           ECS_CLUSTER=\$(curl -s http://localhost:51678/v1/metadata | jq .Cluster | tr -d \")
+  #           CONTAINER_INSTANCE=\$(curl -s http://localhost:51678/v1/metadata | jq .ContainerInstanceArn | tr -d \")
+  #           sed -i "s|%ECS_CLUSTER|\$ECS_CLUSTER|g" /var/awslogs/etc/awslogs.conf
+  #           sed -i "s|%CONTAINER_INSTANCE|\$CONTAINER_INSTANCE|g" /var/awslogs/etc/awslogs.conf
+  #           chkconfig awslogs on
+  #           service awslogs start
+  #           end script
+  #           EOF
+
+  #           cat <<EOF > /etc/init/spot-instance-termination-notice-handler.conf
+  #           description "Start spot instance termination handler monitoring script"
+  #           author "Amazon Web Services"
+  #           start on started ecs
+  #           script
+  #           echo \$\$ > /var/run/spot-instance-termination-notice-handler.pid
+  #           exec /usr/local/bin/spot-instance-termination-notice-handler.sh
+  #           end script
+  #           pre-start script
+  #           logger "[spot-instance-termination-notice-handler.sh]: spot instance termination notice handler started"
+  #           end script
+  #           EOF
+
+  #           cat <<EOF > /usr/local/bin/spot-instance-termination-notice-handler.sh
+  #           #!/bin/bash
+  #           while sleep 5; do
+  #           if [ -z \$(curl -Isf http://169.254.169.254/latest/meta-data/spot/termination-time)];
+  #           then
+  #           /bin/false
+  #           else
+  #           logger "[spot-instance-termination-notice-handler.sh]: spot instance termination notice detected"
+  #           STATUS=DRAINING
+  #           ECS_CLUSTER=\$(curl -s http://localhost:51678/v1/metadata | jq .Cluster | tr -d \")
+  #           CONTAINER_INSTANCE=\$(curl -s http://localhost:51678/v1/metadata | jq .ContainerInstanceArn | tr -d \")
+  #           logger "[spot-instance-termination-notice-handler.sh]: putting instance in state $STATUS"
+  #           logger "[spot-instance-termination-notice-handler.sh]: running: /bin/aws ecs update-container-instances-state --cluster \$ECS_CLUSTER --container-instances $CONTAINER_INSTANCE --status \$STATUS"
+  #           /bin/aws ecs update-container-instances-state --cluster $ECS_CLUSTER --container-instances \$CONTAINER_INSTANCE --status \$STATUS
+  #           logger "[spot-instance-termination-notice-handler.sh]: putting myself to sleep..."
+  #           sleep 120
+  #           fi
+  #           done
+  #           EOF
+
+
+  # # EC@ Instance Autoscaling group
+  # Ec2InstanceAutoScalingGroup:
+  #   Type: AWS::AutoScaling::AutoScalingGroup
+  #   Properties: 
+  #     AutoScalingGroupName: !Sub '${StackName}-EC2-ECS-Autoscaling-Group'
+  #     VPCZoneIdentifier:
+  #       - Fn::ImportValue:
+  #               !Join [':', [!Ref 'StackName', 'PrivateSubnetOne']]
+  #       - Fn::ImportValue:
+  #               !Join [':', [!Ref 'StackName', 'PrivateSubnetTwo']] 
+  #     Cooldown: 300
+  #     MinSize: !Ref 'Ec2AutoscaleMinSize'
+  #     MaxSize: !Ref 'Ec2AutoscaleMaxSize'
+  #     DesiredCapacity: !Ref 'Ec2AutoscaleDesiredCapacity'
+  #     HealthCheckGracePeriod: 0
+  #     HealthCheckType: EC2
+  #     LaunchTemplate: 
+  #       LaunchTemplateId: !Ref 'Ec2InstanceLaunchTemplate'
+  #       Version: !GetAtt 'Ec2InstanceLaunchTemplate.LatestVersionNumber'
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub '${StackName} EC2 ECS Autoscaling group'
+  #         PropagateAtLaunch: true
+  #     TerminationPolicies: 
+  #       - Default
+#####
+
+
+Outputs:
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref 'ECSCluster'
+    Export:
+      Name: !Join [ ':', [ !Ref 'StackName', 'ClusterName' ] ]
+
+  # EC2KeyPair:
+  #   Description: The EC2 Key Pair
+  #   Value: !Ref 'EC2KeyPair'
+  #   Export:
+  #     Name: !Join [ ':', [ !Ref 'StackName', 'EC2KeyPair' ] ] 
+
+  # ECSHostSecurityGroup:
+  #   Description: The ECS Host Security group
+  #   Value: !Ref 'ECSHostSecurityGroup'
+  #   Export:
+  #     Name: !Join [ ':', [ !Ref 'StackName', 'ECSHostSecurityGroup' ] ]
+
+  # InstanceRole:
+  #   Description: The ECS Host Instance Role for instance profile
+  #   Value: !Ref 'InstanceRole'
+  #   Export:
+  #     Name: !Join [ ':', [ !Ref 'StackName', 'InstanceRole' ] ]
+
+  # InstanceProfile:
+  #   Description: The ECS Host Instance Profile
+  #   Value: !Ref 'InstanceProfile'
+  #   Export:
+  #     Name: !Join [ ':', [ !Ref 'StackName', 'InstanceProfile' ] ]
+
+  # Ec2InstanceLaunchTemplate:
+  #   Description: The ECS Host Instance launch template
+  #   Value: !Ref 'Ec2InstanceLaunchTemplate'
+  #   Export:
+  #     Name: !Join [ ':', [ !Ref 'StackName', 'Ec2InstanceLaunchTemplate' ] ]
+
+  # Ec2InstanceAutoScalingGroup:
+  #   Description: The ECS Host Auto scaling group
+  #   Value: !Ref 'Ec2InstanceAutoScalingGroup'
+  #   Export:
+  #     Name: !Join [ ':', [ !Ref 'StackName', 'Ec2InstanceAutoScalingGroup' ] ]      
+   
+    
+    
+                
