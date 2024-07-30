@@ -11,42 +11,42 @@ Parameters:
 
   ECRRepoUrl:
     Type: String
-    Default: 851725287281.dkr.ecr.ap-south-1.amazonaws.com
+    Default: 525101048365.dkr.ecr.ap-south-2.amazonaws.com
     Description: AWS ECR Common URL
 
   AWSBucketUrl:
     Type: String
-    Default: https://ifl-infra.s3.ap-south-1.amazonaws.com
+    Default: https://ifl-infrastructure.s3.ap-south-2.amazonaws.com
     Description: AWS S3 bucket name
 
   VPCCIDR:
     Type: String
-    Default: 10.1.0.0/25
+    Default: 10.2.0.0/25
     Description: AWS VPC CIDR
 
   PublicSubnet1CIDR:
     Type: String
-    Default: 10.1.0.0/27
+    Default: 10.2.0.0/27
     Description: AWS PublicSubnet1CIDR
 
   PublicSubnet2CIDR:
     Type: String
-    Default: 10.1.0.32/27
+    Default: 10.2.0.32/27
     Description: AWS PublicSubnet2CIDR
 
   PrivateSubnet1CIDR:
     Type: String
-    Default: 10.1.0.64/27
+    Default: 10.2.0.64/27
     Description: AWS PrivateSubnet1CIDR
 
   PrivateSubnet2CIDR:
     Type: String
-    Default: 10.1.0.96/27
+    Default: 10.2.0.96/27
     Description: AWS PrivateSubnet2CIDR
 
   SSLCertificate:
     Type: String
-    Default: arn:aws:acm:ap-south-1:851725287281:certificate/1e9d2455-3994-4826-ba06-2ee8e7e8fa42
+    Default: arn:aws:acm:ap-south-2:525101048365:certificate/45be3f59-5fc1-45c8-aa8c-c81fef180399
     Description: AWS SSL Certificate
 
   DomainName:
@@ -56,7 +56,7 @@ Parameters:
 
   EnvironmentFilePath:
     Type: String
-    Default: arn:aws:s3:::ifl-infra/service-data/dev
+    Default: arn:aws:s3:::ifl-infrastructure/service-data/prod
     Description: The aws Environment files path
 
   DesiredCount:
@@ -116,7 +116,7 @@ Resources:
         Priority: 1
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "dev-lsp-api.${DomainName}"
+        HttpHostHeader: !Sub "lsp-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -143,7 +143,7 @@ Resources:
         Priority: 2
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "dev-lsp-auth.${DomainName}"
+        HttpHostHeader: !Sub "lsp-auth-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
@@ -170,7 +170,7 @@ Resources:
         Priority: 3
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "devapicore.${DomainName}"
+        HttpHostHeader: !Sub "lsp-core-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
@@ -197,7 +197,7 @@ Resources:
         Priority: 5
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "devapinotification.${DomainName}"
+        HttpHostHeader: !Sub "lsp-notification-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
@@ -224,7 +224,7 @@ Resources:
         Priority: 6
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "devapilms.${DomainName}"
+        HttpHostHeader: !Sub "lsp-lms-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
@@ -251,7 +251,7 @@ Resources:
         Priority: 7
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "devapischedular.${DomainName}"
+        HttpHostHeader: !Sub "lsp-schedular-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
@@ -278,7 +278,7 @@ Resources:
         Priority: 8
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "devapilos.${DomainName}"
+        HttpHostHeader: !Sub "lsp-los-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -305,7 +305,7 @@ Resources:
         Priority: 9
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "dev-lsp.${DomainName}"
+        HttpHostHeader: !Sub "lsp.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -332,7 +332,7 @@ Resources:
         Priority: 10
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "dev-lsp-core.${DomainName}"
+        HttpHostHeader: !Sub "lsp-core.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -359,7 +359,7 @@ Resources:
         Priority: 11
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "dev-lsp-los.${DomainName}"
+        HttpHostHeader: !Sub "lsp-los.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
@@ -386,7 +386,7 @@ Resources:
         Priority: 12
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "dev-lsp-lms.${DomainName}"
+        HttpHostHeader: !Sub "lsp-lms.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer                                                     
