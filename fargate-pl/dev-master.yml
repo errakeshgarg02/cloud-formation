@@ -11,52 +11,52 @@ Parameters:
 
   ECRRepoUrl:
     Type: String
-    Default: 525101048365.dkr.ecr.ap-south-2.amazonaws.com
+    Default: 039612852714.dkr.ecr.ap-south-1.amazonaws.com
     Description: AWS ECR Common URL
 
   AWSBucketUrl:
     Type: String
-    Default: https://ifl-infrastructure.s3.ap-south-2.amazonaws.com
+    Default: https://pl-infra.s3.ap-south-1.amazonaws.com
     Description: AWS S3 bucket name
 
   VPCCIDR:
     Type: String
-    Default: 10.2.0.0/25
+    Default: 10.1.0.0/25
     Description: AWS VPC CIDR
 
   PublicSubnet1CIDR:
     Type: String
-    Default: 10.2.0.0/27
+    Default: 10.1.0.0/27
     Description: AWS PublicSubnet1CIDR
 
   PublicSubnet2CIDR:
     Type: String
-    Default: 10.2.0.32/27
+    Default: 10.1.0.32/27
     Description: AWS PublicSubnet2CIDR
 
   PrivateSubnet1CIDR:
     Type: String
-    Default: 10.2.0.64/27
+    Default: 10.1.0.64/27
     Description: AWS PrivateSubnet1CIDR
 
   PrivateSubnet2CIDR:
     Type: String
-    Default: 10.2.0.96/27
+    Default: 10.1.0.96/27
     Description: AWS PrivateSubnet2CIDR
 
   SSLCertificate:
     Type: String
-    Default: arn:aws:acm:ap-south-2:525101048365:certificate/45be3f59-5fc1-45c8-aa8c-c81fef180399
+    Default: arn:aws:acm:ap-south-1:039612852714:certificate/c10ccdb7-4157-466a-aa6d-ac82a5659c5f
     Description: AWS SSL Certificate
 
   DomainName:
     Type: String
-    Default: iflhousingfinance.in
+    Default: jsinfosys.co.in
     Description: Domain Name
 
   EnvironmentFilePath:
     Type: String
-    Default: arn:aws:s3:::ifl-infrastructure/service-data/prod
+    Default: arn:aws:s3:::pl-infra/service-data/dev
     Description: The aws Environment files path
 
   DesiredCount:
@@ -66,7 +66,7 @@ Parameters:
 
   LogRetentionInDays:
     Type: Number
-    Default: 90
+    Default: 60
     Description: The Log files retention days 
 
 Resources:
@@ -116,7 +116,7 @@ Resources:
         Priority: 1
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-api.${DomainName}"
+        HttpHostHeader: !Sub "dev-lsp-api.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -143,7 +143,7 @@ Resources:
         Priority: 2
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-auth-api.${DomainName}"
+        HttpHostHeader: !Sub "dev-lsp-auth.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
@@ -170,7 +170,7 @@ Resources:
         Priority: 3
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-core-api.${DomainName}"
+        HttpHostHeader: !Sub "devapicore.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
@@ -180,6 +180,34 @@ Resources:
         LaunchType: FARGATE
         LogRetentionInDays: !Ref LogRetentionInDays
         NetworkMode: awsvpc    #bridge | host | awsvpc | none         
+
+  PersonalLoanService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: personal-loan-service
+        ImageUrl: !Sub ${ECRRepoUrl}/personal-loan-service:latest
+        ContainerPort: 9010
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 4
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapipls.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/credentials.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/personal-loan-service.env            
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none
+
 
   NotificationService:
     DependsOn: VPC
@@ -197,7 +225,7 @@ Resources:
         Priority: 5
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-notification-api.${DomainName}"
+        HttpHostHeader: !Sub "devapinotification.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer   
@@ -224,7 +252,7 @@ Resources:
         Priority: 6
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-lms-api.${DomainName}"
+        HttpHostHeader: !Sub "devapilms.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
@@ -251,7 +279,7 @@ Resources:
         Priority: 7
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-schedular-api.${DomainName}"
+        HttpHostHeader: !Sub "devapischedular.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
@@ -278,7 +306,7 @@ Resources:
         Priority: 8
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /actuator/health
-        HttpHostHeader: !Sub "lsp-los-api.${DomainName}"
+        HttpHostHeader: !Sub "devapilos.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -305,7 +333,7 @@ Resources:
         Priority: 9
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "lsp.${DomainName}"
+        HttpHostHeader: !Sub "dev-lsp.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -332,7 +360,7 @@ Resources:
         Priority: 10
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "lsp-core.${DomainName}"
+        HttpHostHeader: !Sub "dev-lsp-core.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
@@ -359,7 +387,7 @@ Resources:
         Priority: 11
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "lsp-los.${DomainName}"
+        HttpHostHeader: !Sub "dev-lsp-los.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer 
@@ -386,7 +414,7 @@ Resources:
         Priority: 12
         DesiredCount: !Ref 'DesiredCount'
         HealthPath: /
-        HttpHostHeader: !Sub "lsp-lms.${DomainName}"
+        HttpHostHeader: !Sub "dev-lsp-lms.${DomainName}"
         HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
         PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
         PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer                                                     

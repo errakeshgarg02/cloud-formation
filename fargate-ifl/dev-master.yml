@@ -11,12 +11,12 @@ Parameters:
 
   ECRRepoUrl:
     Type: String
-    Default: 851725287281.dkr.ecr.ap-south-1.amazonaws.com
+    Default: 525101048365.dkr.ecr.ap-south-2.amazonaws.com
     Description: AWS ECR Common URL
 
   AWSBucketUrl:
     Type: String
-    Default: https://ifl-infra.s3.ap-south-1.amazonaws.com
+    Default: https://ifl-infrastructure.s3.ap-south-2.amazonaws.com
     Description: AWS S3 bucket name
 
   VPCCIDR:
@@ -46,7 +46,7 @@ Parameters:
 
   SSLCertificate:
     Type: String
-    Default: arn:aws:acm:ap-south-1:851725287281:certificate/1e9d2455-3994-4826-ba06-2ee8e7e8fa42
+    Default: arn:aws:acm:ap-south-2:525101048365:certificate/45be3f59-5fc1-45c8-aa8c-c81fef180399
     Description: AWS SSL Certificate
 
   DomainName:
@@ -56,7 +56,7 @@ Parameters:
 
   EnvironmentFilePath:
     Type: String
-    Default: arn:aws:s3:::ifl-infra/service-data/dev
+    Default: arn:aws:s3:::ifl-infrastructure/service-data/dev
     Description: The aws Environment files path
 
   DesiredCount:
@@ -66,7 +66,7 @@ Parameters:
 
   LogRetentionInDays:
     Type: Number
-    Default: 60
+    Default: 90
     Description: The Log files retention days 
 
 Resources:
