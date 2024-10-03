@@ -396,3 +396,30 @@ Resources:
         LaunchType: FARGATE
         LogRetentionInDays: !Ref LogRetentionInDays
         NetworkMode: awsvpc    #bridge | host | awsvpc | none 
+   
+    ReportingService:
+    DependsOn: VPC
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: reporting-service
+        ImageUrl: !Sub ${ECRRepoUrl}/reporting-service:latest
+        ContainerPort: 9009
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 13
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /actuator/health
+        HttpHostHeader: !Sub "devapilms.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer  
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/credentials.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/backend-common.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/reporting-service.env             
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none       
