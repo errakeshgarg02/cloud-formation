@@ -137,8 +137,8 @@ Resources:
         ServiceName: auth-server
         ImageUrl: !Sub ${ECRRepoUrl}/auth-server:latest
         ContainerPort: 9003
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 2
         DesiredCount: !Ref 'DesiredCount'
@@ -164,8 +164,8 @@ Resources:
         ServiceName: core-module-service
         ImageUrl: !Sub ${ECRRepoUrl}/core-module-service:latest
         ContainerPort: 9004
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 3
         DesiredCount: !Ref 'DesiredCount'
@@ -192,7 +192,7 @@ Resources:
         ImageUrl: !Sub ${ECRRepoUrl}/notification-service:latest
         ContainerPort: 9007
         ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 5
         DesiredCount: !Ref 'DesiredCount'
@@ -218,8 +218,8 @@ Resources:
         ServiceName: lms-service
         ImageUrl: !Sub ${ECRRepoUrl}/lms-service:latest
         ContainerPort: 9006
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 2048
         Path: "*"
         Priority: 6
         DesiredCount: !Ref 'DesiredCount'
@@ -245,8 +245,8 @@ Resources:
         ServiceName: schedular-service
         ImageUrl: !Sub ${ECRRepoUrl}/schedular-service:latest
         ContainerPort: 9008
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 7
         DesiredCount: !Ref 'DesiredCount'
@@ -272,8 +272,8 @@ Resources:
         ServiceName: los-service
         ImageUrl: !Sub ${ECRRepoUrl}/los-service:latest
         ContainerPort: 9005
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 2048
         Path: "*"
         Priority: 8
         DesiredCount: !Ref 'DesiredCount'
@@ -407,8 +407,8 @@ Resources:
         ServiceName: reporting-service
         ImageUrl: !Sub ${ECRRepoUrl}/reporting-service:latest
         ContainerPort: 9009
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 2048
         Path: "*"
         Priority: 13
         DesiredCount: !Ref 'DesiredCount'

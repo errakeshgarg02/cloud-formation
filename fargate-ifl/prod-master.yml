@@ -67,7 +67,68 @@ Parameters:
   LogRetentionInDays:
     Type: Number
     Default: 90
-    Description: The Log files retention days 
+    Description: The Log files retention days
+    
+  ApiGatewayServiceBuild:
+    Type: String
+    Default: latest
+    Description: API Gateway build tag 
+    
+  AuthServerServiceBuild:
+    Type: String
+    Default: latest
+    Description: Auth Server build tag 
+    
+  CoreModuleServiceBuild:
+    Type: String
+    Default: latest
+    Description: Core module build tag 
+    
+  NotificationServiceBuild:
+    Type: String
+    Default: latest
+    Description: NotificationService build tag 
+    
+  LMSServiceBuild:
+    Type: String
+    Default: latest
+    Description: LMSService build tag 
+    
+  SchedularServiceBuild:
+    Type: String
+    Default: latest
+    Description: SchedularService build tag 
+    
+  LosServiceBuild:
+    Type: String
+    Default: latest
+    Description: LosService build tag 
+    
+  MainPortalServiceBuild:
+    Type: String
+    Default: latest
+    Description: MainPortalService build tag 
+    
+  CorePortalServiceBuild:
+    Type: String
+    Default: latest
+    Description: CorePortalService build tag 
+    
+  LosPortalServiceBuild:
+    Type: String
+    Default: latest
+    Description: LosPortalService build tag 
+    
+  LmsPortalServiceBuild:
+    Type: String
+    Default: latest
+    Description: LmsPortalService build tag 
+    
+  ReportingServiceBuild:
+    Type: String
+    Default: latest
+    Description: ReportingService build tag 
+                                              
 
 Resources:
   VPC:
@@ -110,8 +171,8 @@ Resources:
         ServiceName: api-gateway
         ImageUrl: !Sub ${ECRRepoUrl}/api-gateway:latest
         ContainerPort: 9002
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 1
         DesiredCount: !Ref 'DesiredCount'
@@ -137,8 +198,8 @@ Resources:
         ServiceName: auth-server
         ImageUrl: !Sub ${ECRRepoUrl}/auth-server:latest
         ContainerPort: 9003
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 1024
+        ContainerMemory: 2048
         Path: "*"
         Priority: 2
         DesiredCount: !Ref 'DesiredCount'
@@ -164,8 +225,8 @@ Resources:
         ServiceName: core-module-service
         ImageUrl: !Sub ${ECRRepoUrl}/core-module-service:latest
         ContainerPort: 9004
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 3
         DesiredCount: !Ref 'DesiredCount'
@@ -191,8 +252,8 @@ Resources:
         ServiceName: notification-service
         ImageUrl: !Sub ${ECRRepoUrl}/notification-service:latest
         ContainerPort: 9007
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 5
         DesiredCount: !Ref 'DesiredCount'
@@ -218,8 +279,8 @@ Resources:
         ServiceName: lms-service
         ImageUrl: !Sub ${ECRRepoUrl}/lms-service:latest
         ContainerPort: 9006
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 1024
+        ContainerMemory: 2048
         Path: "*"
         Priority: 6
         DesiredCount: !Ref 'DesiredCount'
@@ -245,8 +306,8 @@ Resources:
         ServiceName: schedular-service
         ImageUrl: !Sub ${ECRRepoUrl}/schedular-service:latest
         ContainerPort: 9008
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 7
         DesiredCount: !Ref 'DesiredCount'
@@ -272,8 +333,8 @@ Resources:
         ServiceName: los-service
         ImageUrl: !Sub ${ECRRepoUrl}/los-service:latest
         ContainerPort: 9005
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 1024
+        ContainerMemory: 2048
         Path: "*"
         Priority: 8
         DesiredCount: !Ref 'DesiredCount'
@@ -353,8 +414,8 @@ Resources:
         ServiceName: los-portal
         ImageUrl: !Sub ${ECRRepoUrl}/los-portal:latest
         ContainerPort: 4002
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 512
+        ContainerMemory: 1024
         Path: "*"
         Priority: 11
         DesiredCount: !Ref 'DesiredCount'
@@ -397,7 +458,7 @@ Resources:
         LogRetentionInDays: !Ref LogRetentionInDays
         NetworkMode: awsvpc    #bridge | host | awsvpc | none 
    
-    ReportingService:
+  ReportingService:
     DependsOn: VPC
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -407,8 +468,8 @@ Resources:
         ServiceName: reporting-service
         ImageUrl: !Sub ${ECRRepoUrl}/reporting-service:latest
         ContainerPort: 9009
-        ContainerCpu: 256
-        ContainerMemory: 512
+        ContainerCpu: 1024
+        ContainerMemory: 2048
         Path: "*"
         Priority: 13
         DesiredCount: !Ref 'DesiredCount'
