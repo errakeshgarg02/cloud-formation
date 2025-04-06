@@ -512,7 +512,7 @@ Resources:
       TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
       Parameters:
         StackName: !Ref AWS::StackName
-        ServiceName: core-portal
+        ServiceName: customer-loan-portal
         ImageUrl: !Sub ${ECRRepoUrl}/customer-loan-portal:latest
         ContainerPort: 4004
         ContainerCpu: 256
