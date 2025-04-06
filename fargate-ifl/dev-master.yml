@@ -13,7 +13,7 @@ Parameters:
     Type: String
     Default: 525101048365.dkr.ecr.ap-south-2.amazonaws.com
     Description: AWS ECR Common URL
-
+    
   AWSBucketUrl:
     Type: String
     Default: https://ifl-infrastructure.s3.ap-south-2.amazonaws.com
@@ -503,4 +503,31 @@ Resources:
         EnvironmentFile3: !Sub ${EnvironmentFilePath}/personal-loan-service.env            
         LaunchType: FARGATE
         LogRetentionInDays: !Ref LogRetentionInDays
-        NetworkMode: awsvpc    #bridge | host | awsvpc | none                                       
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none  
+        
+  CustomerLoanPortalService:
+    DependsOn: Discovery
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${AWSBucketUrl}/cloudformation/service.yml
+      Parameters:
+        StackName: !Ref AWS::StackName
+        ServiceName: core-portal
+        ImageUrl: !Sub ${ECRRepoUrl}/customer-loan-portal:latest
+        ContainerPort: 4004
+        ContainerCpu: 256
+        ContainerMemory: 512
+        Path: "*"
+        Priority: 16
+        DesiredCount: !Ref 'DesiredCount'
+        HealthPath: /
+        HttpHostHeader: !Sub "dev-pls.${DomainName}"
+        HTTPSListener: !GetAtt VPC.Outputs.HTTPSlistener
+        PrivateNamespace: !GetAtt Discovery.Outputs.PrivateNamespace
+        PublicLoadBalancer: !GetAtt VPC.Outputs.PublicLoadBalancer
+        EnvironmentFile1: !Sub ${EnvironmentFilePath}/customer-loan-portal.env
+        EnvironmentFile2: !Sub ${EnvironmentFilePath}/customer-loan-portal.env
+        EnvironmentFile3: !Sub ${EnvironmentFilePath}/customer-loan-portal.env
+        LaunchType: FARGATE
+        LogRetentionInDays: !Ref LogRetentionInDays
+        NetworkMode: awsvpc    #bridge | host | awsvpc | none                                              
